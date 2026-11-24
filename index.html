@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TypeDash - Typing Speed Test</title>
+<style>
+/* TypeDash - typing speed test with live WPM. Single file, offline. */
+:root{--bg:#101018;--panel:#1a1a28;--line:#2d2d44;--accent:#facc15;--accent2:#4ade80;
+--text:#f5f4ff;--muted:#a09cc0;--danger:#fb7185}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:radial-gradient(900px 600px at 70% 0%,#2a2308,var(--bg));color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:28px 16px 48px}
+h1{font-size:clamp(1.5rem,4vw,2rem)} h1 span{color:var(--accent)}
+.sub{color:var(--muted);font-size:.85rem;margin:4px 0 18px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:18px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 18px;text-align:center;min-width:92px}
+.stat b{display:block;font-size:1.35rem;color:var(--accent)}
+.stat span{font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+#card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px;width:min(680px,94vw);box-shadow:0 18px 50px rgba(0,0,0,.4)}
+#quote{font-size:clamp(1.05rem,3vw,1.3rem);line-height:2;font-family:Georgia,serif;margin-bottom:18px;word-break:break-word}
+#quote .done{color:var(--accent2)}
+#quote .cur{border-bottom:2px solid var(--accent)}
+#quote .bad{color:var(--danger);background:#fb718522;border-radius:3px}
+#quote .todo{color:var(--muted)}
+#input{width:100%;background:#12121e;border:1px solid var(--line);border-radius:11px;color:var(--text);padding:13px 15px;font-size:1.05rem;font-family:inherit}
+#input:focus{outline:2px solid var(--accent);border-color:transparent}
+.row{display:flex;gap:10px;justify-content:center;margin-top:18px}
+.btn{background:linear-gradient(135deg,var(--accent),#eab308);border:none;color:#241a02;font-weight:700;padding:11px 24px;border-radius:12px;cursor:pointer;font-size:.95rem;transition:transform .15s}
+.btn:hover{transform:translateY(-2px)}
+#result{text-align:center;margin-top:16px;font-size:1.05rem;min-height:26px;font-weight:700;color:var(--accent2)}
+#best{text-align:center;color:var(--muted);font-size:.78rem;margin-top:6px}
+</style>
+</head>
+<body>
+<h1 id="brand">Type<span>Dash</span></h1>
+<div class="sub" id="tag"></div>
+<div class="stats">
+  <div class="stat"><b id="wpm">0</b><span>WPM</span></div>
+  <div class="stat"><b id="acc">100%</b><span>Accuracy</span></div>
+  <div class="stat"><b id="time">0s</b><span>Time</span></div>
+  <div class="stat"><b id="bestChip">-</b><span>Best WPM</span></div>
+</div>
+<div id="card">
+  <div id="quote"></div>
+  <input id="input" placeholder="Start typing here..." autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div id="result"></div>
+  <div class="row"><button class="btn" id="again">New text</button></div>
+  <div id="best"></div>
+</div>
+<script>
+/* ============ CONFIG (rebrand here) ============ */
+const CONFIG = { brandName:"TypeDash", tagline:"How fast can your fingers fly?" };
+/* ============ Texts (client-side, offline) ============ */
+const TEXTS = [
+ "The quick brown fox jumps over the lazy dog while the sun sets behind the quiet hills.",
+ "Good code is its own best documentation. Clear names beat clever tricks every single time.",
+ "A journey of a thousand miles begins with a single step, taken with courage and curiosity.",
+ "Technology is best when it brings people together and makes the hard things feel simple.",
+ "Practice does not make perfect. Perfect practice, repeated daily, is what makes progress.",
+ "The best time to plant a tree was twenty years ago. The second best time is right now.",
+ "Simplicity is the soul of efficiency. Remove what does not matter and keep what does.",
+ "Great design is invisible. It guides the eye, answers questions, and never shouts for attention."
+];
+/* ============ State ============ */
+const $ = id => document.getElementById(id);
+let text="", start=null, done=false, errors=0, timer=null;
+let best = 0; try{ best = +localStorage.getItem("td_best") || 0; }catch(e){}
+function newText(){
+  text = TEXTS[Math.floor(Math.random()*TEXTS.length)];
+  start=null; done=false; errors=0; clearInterval(timer);
+  $("input").value=""; $("result").textContent="";
+  $("wpm").textContent="0"; $("acc").textContent="100%"; $("time").textContent="0s";
+  renderQuote("");
+  $("bestChip").textContent = best || "-";
+  $("best").textContent = best ? "Personal best: "+best+" WPM on this device." : "No record yet. Set one!";
+}
+function renderQuote(typed){
+  const q=$("quote"); q.innerHTML="";
+  for(let i=0;i<text.length;i++){
+    const s=document.createElement("span");
+    s.textContent=text[i];
+    if(i<typed.length){
+      s.className = typed[i]===text[i] ? "done" : "bad";
+    } else if(i===typed.length){ s.className="cur todo"; }
+    else s.className="todo";
+    q.appendChild(s);
+  }
+}
+$("input").addEventListener("input", e=>{
+  if(done) return;
+  const v = e.target.value;
+  if(!start && v.length){ start=Date.now(); timer=setInterval(tick,250); }
+  errors = v.split("").filter((ch,i)=>ch!==text[i]).length;
+  renderQuote(v);
+  tick();
+  if(v===text) finish();
+});
+function tick(){
+  if(!start) return;
+  const secs=(Date.now()-start)/1000;
+  const typed=$("input").value;
+  const words=typed.trim().split(/\s+/).filter(Boolean).length;
+  const wpm = secs>1 ? Math.round(words/(secs/60)) : 0;
+  const acc = typed.length ? Math.max(0,Math.round(100*(1-errors/typed.length))) : 100;
+  $("wpm").textContent=wpm; $("acc").textContent=acc+"%"; $("time").textContent=Math.round(secs)+"s";
+}
+function finish(){
+  done=true; clearInterval(timer);
+  const secs=(Date.now()-start)/1000;
+  const words=text.trim().split(/\s+/).length;
+  const wpm=Math.round(words/(secs/60));
+  const acc=Math.max(0,Math.round(100*(1-errors/text.length)));
+  $("result").textContent = wpm+" WPM at "+acc+"% accuracy - "+(wpm>=50?"blazing!":wpm>=35?"solid!":"keep practicing!");
+  if(wpm>best){ best=wpm; try{localStorage.setItem("td_best",best);}catch(e){} }
+  $("bestChip").textContent=best;
+  $("best").textContent="Personal best: "+best+" WPM on this device.";
+}
+$("again").onclick = newText;
+$("tag").textContent = CONFIG.tagline;
+document.title = CONFIG.brandName + " - Typing Speed Test";
+newText();
+</script>
+</body>
+</html>
